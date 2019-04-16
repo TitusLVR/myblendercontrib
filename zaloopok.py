@@ -1,14 +1,15 @@
 bl_info = {
     "name": "Zaloopok",
-    "author": "nemyax",
-    "version": (0, 6, 20170206),
-    "blender": (2, 7, 6),
+    "author": "nemyax/Titus Lavrov",
+    "version": (0, 6, 20190401),
+    "blender": (2, 80, 0),
     "location": "",
     "description": "Adaptations of a few tools from Wings3D",
     "warning": "",
     "wiki_url": "",
     "tracker_url": "",
-    "category": "Mesh"}
+    "category": "Mesh"
+    }
 
 import bpy
 from bpy.props import FloatProperty, EnumProperty
@@ -342,7 +343,7 @@ def mirror(bm):
         sm = mu.Matrix.Scale(-1.0, 4, f.normal)
         cp = copy_lookup[f]
         bmesh.ops.transform(bm,
-            matrix=tm * sm * tm.inverted(),
+            matrix=tm @ sm @ tm.inverted(),
             verts=[v for v in cp['geom'] if type(v) == bmesh.types.BMVert])
         weld_map = {}
         for v in f.verts:
@@ -358,10 +359,7 @@ def put_on(to, at, bm, turn):
     turn_mtx = mu.Matrix.Rotation(math.radians(turn), 4, 'Z')
     src_mtx = at.normal.to_track_quat('Z', 'Y').to_matrix().to_4x4()
     trg_mtx = to.normal.to_track_quat('-Z', 'Y').to_matrix().to_4x4()
-    mtx =  mu.Matrix.Translation(to_xyz) * \
-        trg_mtx * turn_mtx * \
-        src_mtx.inverted() * \
-        mu.Matrix.Translation(-at_xyz)
+    mtx =  mu.Matrix.Translation(to_xyz) @ trg_mtx @ turn_mtx @ src_mtx.inverted() @ mu.Matrix.Translation(-at_xyz)
     piece = extend_region(at, bm)
     bmesh.ops.transform(bm,
         matrix=mtx, space=mu.Matrix.Identity(4), verts=piece)
@@ -1013,7 +1011,7 @@ class RotateUVFragments(bpy.types.Operator):
     bl_idname = "uv.z_rotate_fragments"
     bl_label = "Rotate Fragments"
     bl_options = {'GRAB_CURSOR', 'BLOCKING', 'REGISTER', 'UNDO'}
-    angle = FloatProperty(
+    angle : FloatProperty(
         name="Angle",
         description="Angle to rotate fragments by",
         min=-100000.0,
@@ -1066,7 +1064,7 @@ class ScaleUVFragments(bpy.types.Operator):
     bl_idname = "uv.z_scale_fragments"
     bl_label = "Scale Fragments"
     bl_options = {'GRAB_CURSOR', 'BLOCKING', 'REGISTER', 'UNDO'}
-    factor = FloatProperty(
+    factor : FloatProperty(
         name="Angle",
         description="Scale factor for fragments",
         min=-100000.0,
@@ -1169,9 +1167,10 @@ class LineUpUVChains(bpy.types.Operator):
 
 class ZaloopokView3DPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
+    bl_region_type = 'UI'
     bl_idname = "VIEW3D_PT_Zaloopok"
-    bl_label = "Zaloopok"
+    bl_category = 'Zaloopok'
+    bl_label = "Zaloopok"   
 
     @classmethod
     def poll(cls, context):
@@ -1180,24 +1179,24 @@ class ZaloopokView3DPanel(bpy.types.Panel):
     def draw(self, context):
         col = self.layout.column()
         subcol1 = col.column(align = True)
-        subcol1.label("Select More:")
+        subcol1.label(text="Select More:")
         subcol1.operator("mesh.z_grow_loop", text="Grow Loop")
         subcol1.operator("mesh.z_grow_ring", text="Grow Ring")
         subcol2 = col.column(align = True)
         subcol2.separator()
-        subcol2.label("Select Less:")
+        subcol2.label(text="Select Less:")
         subcol2.operator("mesh.z_shrink_loop", text="Shrink Loop")
         subcol2.operator("mesh.z_shrink_ring", text="Shrink Ring")
         subcol3 = col.column(align = True)
         subcol3.separator()
-        subcol3.label("Select Bounded:")
+        subcol3.label(text="Select Bounded:")
         subcol3.operator("mesh.z_select_bounded_loop", text="Select Loop")
         subcol3.operator("mesh.z_select_bounded_ring", text="Select Ring")
         comp_sel = context.tool_settings.mesh_select_mode[:]
         if len(list(filter(lambda x: x, comp_sel))) == 1:
                 subcol4 = col.column(align = True)
                 subcol4.separator()
-                subcol4.label("Convert Selection to:")
+                subcol4.label(text="Convert Selection to:")
                 if not comp_sel[0]:
                     subcol4.operator("mesh.z_to_verts", text="Vertices")
                 if not comp_sel[1]:
@@ -1206,7 +1205,7 @@ class ZaloopokView3DPanel(bpy.types.Panel):
                     subcol4.operator("mesh.z_to_faces", text="Faces")
         subcol5 = col.column(align = True)
         subcol5.separator()
-        subcol5.label("Modify:")
+        subcol5.label(text="Modify:")
         subcol5.operator("mesh.z_delete_mode")
         subcol5.operator("mesh.eq_edges")
         subcol5.operator("mesh.line_up_edges")
@@ -1216,8 +1215,9 @@ class ZaloopokView3DPanel(bpy.types.Panel):
 
 class ZaloopokUVPanel(bpy.types.Panel):
     bl_space_type = 'IMAGE_EDITOR'
-    bl_region_type = 'TOOLS'
+    bl_region_type = 'UI'
     bl_idname = "IMGEDIT_PT_Zaloopok"
+    bl_category = 'Zaloopok'
     bl_label = "Zaloopok"
 
     @classmethod
@@ -1227,7 +1227,7 @@ class ZaloopokUVPanel(bpy.types.Panel):
     def draw(self, context):
         col = self.layout.column()
         subcol1 = col.column(align = True)
-        subcol1.label("Transform fragments:")
+        subcol1.label(text="Transform fragments:")
         subcol1.operator("uv.z_rotate_fragments", text="Rotate")
         subcol1.operator("uv.z_scale_fragments", text="Scale")
         subcol1.separator()
@@ -1235,51 +1235,40 @@ class ZaloopokUVPanel(bpy.types.Panel):
         subcol2.operator("uv.equalize", text="Equalize")
         subcol2.operator("uv.line_up", text="Line Up")
 
+classes = (
+            ZaloopokView3DPanel,
+            ZaloopokUVPanel,
+            GrowLoop,
+            ShrinkLoop,
+            GrowRing,
+            ShrinkRing,
+            SelectBoundedLoop,
+            SelectBoundedRing,
+            ToFaces,
+            ToEdges,
+            ToVerts,
+            EdgeEq,
+            EdgeLineUp,
+            ContextDelete,
+            PutOn,
+            Mirror,
+            EdgeConnect,
+            RotateUVFragments,
+            ScaleUVFragments,
+            EqualizeUVChains,
+            LineUpUVChains
+        )
+    
 def register():
-    bpy.utils.register_class(ZaloopokView3DPanel)
-    bpy.utils.register_class(ZaloopokUVPanel)
-    bpy.utils.register_class(GrowLoop)
-    bpy.utils.register_class(ShrinkLoop)
-    bpy.utils.register_class(GrowRing)
-    bpy.utils.register_class(ShrinkRing)
-    bpy.utils.register_class(SelectBoundedLoop)
-    bpy.utils.register_class(SelectBoundedRing)
-    bpy.utils.register_class(ToFaces)
-    bpy.utils.register_class(ToEdges)
-    bpy.utils.register_class(ToVerts)
-    bpy.utils.register_class(EdgeEq)
-    bpy.utils.register_class(EdgeLineUp)
-    bpy.utils.register_class(ContextDelete)
-    bpy.utils.register_class(PutOn)
-    bpy.utils.register_class(Mirror)
-    bpy.utils.register_class(EdgeConnect)
-    bpy.utils.register_class(RotateUVFragments)
-    bpy.utils.register_class(ScaleUVFragments)
-    bpy.utils.register_class(EqualizeUVChains)
-    bpy.utils.register_class(LineUpUVChains)
+    for cls in classes:
+        bpy.utils.register_class(cls)    
+    
 
-def unregister():
-    bpy.utils.unregister_class(ZaloopokView3DPanel)
-    bpy.utils.unregister_class(ZaloopokUVPanel)
-    bpy.utils.unregister_class(GrowLoop)
-    bpy.utils.unregister_class(ShrinkLoop)
-    bpy.utils.unregister_class(GrowRing)
-    bpy.utils.unregister_class(ShrinkRing)
-    bpy.utils.unregister_class(SelectBoundedLoop)
-    bpy.utils.unregister_class(SelectBoundedRing)
-    bpy.utils.unregister_class(ToFaces)
-    bpy.utils.unregister_class(ToEdges)
-    bpy.utils.unregister_class(ToVerts)
-    bpy.utils.unregister_class(EdgeEq)
-    bpy.utils.unregister_class(EdgeLineUp)
-    bpy.utils.unregister_class(ContextDelete)
-    bpy.utils.unregister_class(PutOn)
-    bpy.utils.unregister_class(Mirror)
-    bpy.utils.unregister_class(EdgeConnect)
-    bpy.utils.unregister_class(RotateUVFragments)
-    bpy.utils.unregister_class(ScaleUVFragments)
-    bpy.utils.unregister_class(EqualizeUVChains)
-    bpy.utils.unregister_class(LineUpUVChains)
+def unregister():    
+
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
+
 
 if __name__ == "__main__":
     register()
